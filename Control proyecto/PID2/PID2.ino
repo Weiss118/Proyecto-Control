@@ -6,7 +6,7 @@ const int M1 = 4;  // Dirección Motor
 const int TRIG_PIN = 9;
 const int ECHO_PIN = 10;
 
-const int MAX_DISTANCE = 60; 
+const int MAX_DISTANCE = 70; 
 NewPing sonar(TRIG_PIN, ECHO_PIN, MAX_DISTANCE);
 
 // --- PARÁMETROS DEL SISTEMA DE CONTROL ---
@@ -70,7 +70,7 @@ void loop() {
       
       if (coma1 > 0 && coma2 > 0 && coma3 > 0) {
         float nuevoSetpoint = entrada.substring(0, coma1).toFloat();
-        if (nuevoSetpoint >= 1 && nuevoSetpoint <= 45) {
+        if (nuevoSetpoint >= 1 && nuevoSetpoint <= 60) {
             SETPOINT_OBJETIVO = nuevoSetpoint;
         }
         Kp = entrada.substring(coma1 + 1, coma2).toFloat();
@@ -89,8 +89,8 @@ void loop() {
     // --- LECTURA Y FILTRADO DEL SENSOR ---
     float rawDistance = sonar.ping_cm();
     // Manejo de lectura nula o pelota fuera de rango
-    if (rawDistance == 0 || rawDistance > 60) {
-      rawDistance = 52.0; 
+    if (rawDistance == 0 || rawDistance > 62) {
+      rawDistance = 62.0; 
     }
     
     // Suavizado de la lectura (Low-Pass Filter)
@@ -110,7 +110,7 @@ void loop() {
       }
 
       // B. Rescate si la pelota está en el fondo
-      if (input >= 47) {
+      if (input >= 62) {
         pwmCalculado = 235; 
         integralSum = 0; // Evita inestabilidad al subir
       } 
@@ -150,7 +150,9 @@ void loop() {
     // --- MONITOREO SERIAL (Para la gráfica de Python) ---
     // Enviamos el Setpoint Actual y la Distancia separados por una coma
     Serial.print(setpointActual);
-    Serial.print(",");
-    Serial.println(input); 
+Serial.print(",");
+Serial.print(input); 
+Serial.print(",");
+Serial.println(pwmCalculado);
   }
 }

@@ -45,7 +45,7 @@ class LevitadorGUI:
         self.ax.set_title("Comportamiento del Levitador")
         self.ax.set_xlabel("Tiempo (s)")
         self.ax.set_ylabel("Distancia (cm)")
-        self.ax.set_ylim(0, 50) 
+        self.ax.set_ylim(0, 65) 
         
         # Dos líneas: Setpoint y Distancia Real
         self.linea_setpoint, = self.ax.plot([], [], 'r--', linewidth=2, label="Setpoint (Objetivo)")
@@ -81,6 +81,8 @@ class LevitadorGUI:
 
         self.btn_estado = tk.Button(frame_controles, text="ENCENDER LEVITADOR", bg="#2196F3", fg="white", font=("Arial", 12, "bold"), command=self.toggle_estado)
         self.btn_estado.pack(pady=10, fill=tk.X, ipady=15)
+        self.lbl_pwm = tk.Label(frame_controles, text="PWM Actual: 0", font=("Arial", 14, "bold"), fg="#FF5722")
+        self.lbl_pwm.pack(pady=15)
 
         # Animación súper fluida (30ms)
         self.ani = FuncAnimation(self.figura, self.actualizar_grafica, interval=30, blit=False, cache_frame_data=False)
@@ -123,14 +125,18 @@ class LevitadorGUI:
                         # Separar los datos por la coma (Setpoint, Distancia)
                         datos = linea_serial.split(',')
                         
-                        if len(datos) == 2:
+                        if len(datos) == 3: # Ahora recibimos Setpoint, Distancia y PWM
                             sp_actual = float(datos[0])
                             distancia_actual = float(datos[1])
+                            pwm_actual = int(datos[2]) # Extraer el valor PWM
                             tiempo_actual = time.time() - self.inicio_tiempo
                             
                             self.tiempos.append(tiempo_actual)
                             self.setpoints.append(sp_actual)
                             self.distancias.append(distancia_actual)
+                            
+                            # Actualizar la interfaz con el valor PWM
+                            self.lbl_pwm.config(text=f"PWM Actual: {pwm_actual}")
             except Exception:
                 pass 
 
