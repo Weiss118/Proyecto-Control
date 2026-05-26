@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-import serial
+import serial 
 import time
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -8,7 +8,7 @@ from matplotlib.animation import FuncAnimation
 import collections
 
 # --- CONFIGURACIÓN SERIAL ---
-PUERTO_SERIAL = 'COM14' # <-- Cambia esto a tu puerto real
+PUERTO_SERIAL = 'COM3' # <-- Cambia esto a tu puerto real
 BAUD_RATE = 115200     # <-- Ajustado a tu nuevo código de Arduino
 
 class LevitadorGUI:
@@ -18,11 +18,11 @@ class LevitadorGUI:
         self.root.geometry("1050x650")
 
         self.sistema_encendido = False
-        
+        datosGuardados = 200
         # Datos para la gráfica (guarda los últimos 100 puntos)
-        self.tiempos = collections.deque(maxlen=100)
-        self.distancias = collections.deque(maxlen=100)
-        self.setpoints = collections.deque(maxlen=100) # Nueva lista para la rampa suave
+        self.tiempos = collections.deque(maxlen=datosGuardados)
+        self.distancias = collections.deque(maxlen=datosGuardados)
+        self.setpoints = collections.deque(maxlen=datosGuardados) # Nueva lista para la rampa suave
         self.inicio_tiempo = time.time()
 
         # Conexión Serial
