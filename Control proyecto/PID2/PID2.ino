@@ -29,7 +29,7 @@ int pwmCalculado = 0;
 
 // Control de tiempo para bucle no bloqueante
 unsigned long lastTime = 0;
-const int sampleTime = 50; // El PID se ejecuta cada 50 ms
+const int sampleTime = 20; // El PID se ejecuta cada 20 ms
 const float alpha = 0.4;   // Factor de filtro EMA (0.0 a 1.0)
 
 void setup() {
@@ -70,7 +70,7 @@ void loop() {
       
       if (coma1 > 0 && coma2 > 0 && coma3 > 0) {
         float nuevoSetpoint = entrada.substring(0, coma1).toFloat();
-        if (nuevoSetpoint >= 1 && nuevoSetpoint <= 60) {
+        if (nuevoSetpoint >= 0 && nuevoSetpoint <= 40) {
             SETPOINT_OBJETIVO = nuevoSetpoint;
         }
         Kp = entrada.substring(coma1 + 1, coma2).toFloat();
@@ -88,9 +88,18 @@ void loop() {
     
     // --- LECTURA Y FILTRADO DEL SENSOR ---
     float rawDistance = sonar.ping_cm();
-    // Manejo de lectura nula o pelota fuera de rango
-    if (rawDistance == 0 || rawDistance > 62) {
-      rawDistance = 62.0; 
+    
+    // Manejo de lectura nula o pelota fuera de rango físico máximo (50 cm absolutos)
+    if (rawDistance == 0 || rawDistance > 50.0) {
+      rawDistance = 50.0; 
+    }
+    
+    // Ajuste de tu CERO FÍSICO: Restamos los 5 cm de la parte superior
+    rawDistance = rawDistance - 5.0;
+    
+    // Evitar que la distancia sea negativa si la pelota sube más allá de la marca 0
+    if (rawDistance < 0.0) {
+      rawDistance = 0.0;
     }
     
     // Suavizado de la lectura (Low-Pass Filter)
@@ -99,44 +108,48 @@ void loop() {
     // --- LÓGICA PID ---
     if (sistemaEncendido) {
       
-      // A. Rampa suave del Setpoint
-      if (setpointActual < SETPOINT_OBJETIVO) {
-        setpointActual += VELOCIDAD_RAMPA; 
-        if (setpointActual > SETPOINT_OBJETIVO) setpointActual = SETPOINT_OBJETIVO;
-      } 
-      else if (setpointActual > SETPOINT_OBJETIVO) {
-        setpointActual -= VELOCIDAD_RAMPA; 
-        if (setpointActual < SETPOINT_OBJETIVO) setpointActual = SETPOINT_OBJETIVO;
-      }
+      // La rampa está comentada actualmente, va directo al objetivo
+      setpointActual = SETPOINT_OBJETIVO;
 
-      // B. Rescate si la pelota está en el fondo
-      if (input >= 62) {
+      // B. Rescate si la pelota está en el fondo (ajustado a la nueva escala relativa)
+      // Si el máximo útil es 40, a partir de 42 consideramos que se cayó
+      if (input >= 42.0) {
         pwmCalculado = 235; 
-        integralSum = 0; // Evita inestabilidad al subir
+        integralSum = 0.0; // Evita inestabilidad al subir
       } 
       else {
-        // Asumiendo sensor en la parte superior: 
         // Error positivo = Pelota demasiado baja (distancia mayor al setpoint)
         float error = input - setpointActual;
-        
-        // Conversión del tiempo a segundos para independizar Ki y Kd
         float dt_sec = dt / 1000.0;
 
         // Proporcional
         float pTerm = Kp * error;
 
-        // Integral con Anti-Windup (+/- 50 puntos de PWM máximo)
-        integralSum += (Ki * error * dt_sec);
-        integralSum = constrain(integralSum, -50.0, 50.0); 
-        
-        // Derivativo sobre la MEDICIÓN para mitigar el "Derivative Kick"
+        // Derivativo sobre la MEDICIÓN (Mitiga Derivative Kick)
         float dTerm = Kd * ((input - lastInput) / dt_sec);
+
+        // --- SOLUCIÓN: ANTI-WINDUP POR INTEGRACIÓN CONDICIONAL ---
+        // 1. Calculamos cuál sería el esfuerzo SIN sumar nueva integral
+        float esfuerzoPrevio = PWM_BASE + pTerm + integralSum + dTerm;
+
+        // 2. Evaluamos si el actuador ya está saturado y el error sigue empujando en esa dirección
+        bool saturadoArriba = (esfuerzoPrevio >= 255.0 && error > 0);
+        bool saturadoAbajo = (esfuerzoPrevio <= 10.0 && error < 0);
+
+        // 3. Solo integramos si NO estamos agravando la saturación
+        if (!saturadoArriba && !saturadoAbajo) {
+          // Método discreto Euler hacia adelante
+          integralSum += (Ki * error * dt_sec);
+          
+          // Mantenemos tu límite duro por seguridad extra
+          integralSum = constrain(integralSum, -50.0f, 50.0f); 
+        }
 
         // Salida = Esfuerzo base (Gravedad) + Esfuerzo PID
         float salidaFlotante = PWM_BASE + pTerm + integralSum + dTerm;
         
-        // Saturación segura para el motor
-        pwmCalculado = constrain((int)salidaFlotante, 110, 255);
+        // Saturación final segura para el motor
+        pwmCalculado = constrain((int)salidaFlotante, 10, 255);
       }
 
       // Aplicar potencia
@@ -148,11 +161,11 @@ void loop() {
     lastTime = now;
 
     // --- MONITOREO SERIAL (Para la gráfica de Python) ---
-    // Enviamos el Setpoint Actual y la Distancia separados por una coma
+    // Enviamos el Setpoint Actual, la Distancia y el PWM separados por comas
     Serial.print(setpointActual);
-Serial.print(",");
-Serial.print(input); 
-Serial.print(",");
-Serial.println(pwmCalculado);
+    Serial.print(",");
+    Serial.print(input); 
+    Serial.print(",");
+    Serial.println(pwmCalculado);
   }
 }
