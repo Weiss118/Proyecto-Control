@@ -8,36 +8,35 @@ from matplotlib.animation import FuncAnimation
 import collections
 
 # --- CONFIGURACIÓN SERIAL ---
-# Cambia 'COM3' por el puerto donde esté conectado tu Arduino (ej. '/dev/ttyACM0' en Linux/Mac)
-PUERTO_SERIAL = 'COM14'
-BAUD_RATE = 9600
+PUERTO_SERIAL = 'COM14' # <-- Cambia esto a tu puerto real
+BAUD_RATE = 115200     # <-- Ajustado a tu nuevo código de Arduino
 
 class LevitadorGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Control PID - Levitador")
-        self.root.geometry("1000x600")
+        self.root.title("Control PID Avanzado - Levitador")
+        self.root.geometry("1050x650")
 
-        # Estado del sistema
         self.sistema_encendido = False
         
         # Datos para la gráfica (guarda los últimos 100 puntos)
         self.tiempos = collections.deque(maxlen=100)
         self.distancias = collections.deque(maxlen=100)
+        self.setpoints = collections.deque(maxlen=100) # Nueva lista para la rampa suave
         self.inicio_tiempo = time.time()
 
-        # Intento de conexión con Arduino
+        # Conexión Serial
         try:
-            self.arduino = serial.Serial(PUERTO_SERIAL, BAUD_RATE, timeout=0.1)
-            time.sleep(2) # Esperar a que Arduino reinicie tras la conexión
+            self.arduino = serial.Serial(PUERTO_SERIAL, BAUD_RATE, timeout=0.05)
+            time.sleep(2) 
         except serial.SerialException:
             self.arduino = None
-            messagebox.showwarning("Advertencia", f"No se pudo conectar al puerto {PUERTO_SERIAL}. Iniciando en modo simulación/sin conexión.")
+            messagebox.showwarning("Advertencia", f"No se pudo conectar al puerto {PUERTO_SERIAL}.")
 
         self.crear_interfaz()
 
     def crear_interfaz(self):
-        # --- ZONA DE GRÁFICA (Izquierda) ---
+        # --- ZONA DE GRÁFICA ---
         frame_grafica = tk.Frame(self.root)
         frame_grafica.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=10)
 
@@ -45,103 +44,104 @@ class LevitadorGUI:
         self.ax = self.figura.add_subplot(111)
         self.ax.set_title("Comportamiento del Levitador")
         self.ax.set_xlabel("Tiempo (s)")
-        self.ax.set_ylabel("Distancia")
-        self.ax.set_ylim(0, 45) # Límite acotado de 0 a 45
-        self.linea, = self.ax.plot([], [], 'b-')
+        self.ax.set_ylabel("Distancia (cm)")
+        self.ax.set_ylim(0, 50) 
+        
+        # Dos líneas: Setpoint y Distancia Real
+        self.linea_setpoint, = self.ax.plot([], [], 'r--', linewidth=2, label="Setpoint (Objetivo)")
+        self.linea, = self.ax.plot([], [], 'b-', linewidth=2, label="Pelota (Real)")
+        self.ax.legend(loc="upper right")
 
         self.canvas = FigureCanvasTkAgg(self.figura, master=frame_grafica)
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
-        # --- ZONA DE CONTROLES (Derecha) ---
-        frame_controles = tk.Frame(self.root, width=250)
+        # --- ZONA DE CONTROLES ---
+        frame_controles = tk.Frame(self.root, width=280)
         frame_controles.pack(side=tk.RIGHT, fill=tk.Y, padx=10, pady=10)
 
-        # Título Controles
-        tk.Label(frame_controles, text="Parámetros de Control", font=("Arial", 14, "bold")).pack(pady=10)
+        tk.Label(frame_controles, text="Parámetros PID", font=("Arial", 14, "bold")).pack(pady=10)
 
-        # Campos de entrada
         self.entradas = {}
-        campos = ["Distancia (Setpoint)", "Kp", "Ki", "Kd"]
+        # Valores por defecto basados en tu código
+        campos = {"Distancia (Setpoint)": "15", "Kp": "5.5", "Ki": "0.45", "Kd": "2.2"}
         
-        for campo in campos:
+        for campo, valor_defecto in campos.items():
             frame_campo = tk.Frame(frame_controles)
-            frame_campo.pack(pady=5, fill=tk.X)
+            frame_campo.pack(pady=8, fill=tk.X)
             tk.Label(frame_campo, text=campo + ":", width=18, anchor="w").pack(side=tk.LEFT)
             entry = ttk.Entry(frame_campo, width=10)
+            entry.insert(0, valor_defecto)
             entry.pack(side=tk.RIGHT)
             self.entradas[campo] = entry
 
-        # Botón Enviar Parámetros
-        btn_enviar = tk.Button(frame_controles, text="Enviar Parámetros", bg="#4CAF50", fg="white", command=self.enviar_parametros)
-        btn_enviar.pack(pady=20, fill=tk.X)
+        btn_enviar = tk.Button(frame_controles, text="Enviar Parámetros", bg="#4CAF50", fg="white", font=("Arial", 10, "bold"), command=self.enviar_parametros)
+        btn_enviar.pack(pady=15, fill=tk.X)
 
-        # Separador
-        ttk.Separator(frame_controles, orient='horizontal').pack(fill='x', pady=10)
+        ttk.Separator(frame_controles, orient='horizontal').pack(fill='x', pady=15)
 
-        # Botón Encender/Apagar
         self.btn_estado = tk.Button(frame_controles, text="ENCENDER LEVITADOR", bg="#2196F3", fg="white", font=("Arial", 12, "bold"), command=self.toggle_estado)
-        self.btn_estado.pack(pady=20, fill=tk.X, ipady=10)
+        self.btn_estado.pack(pady=10, fill=tk.X, ipady=15)
 
-        # Iniciar animación de la gráfica
-        self.ani = FuncAnimation(self.figura, self.actualizar_grafica, interval=100, blit=False)
-
+        # Animación súper fluida (30ms)
+        self.ani = FuncAnimation(self.figura, self.actualizar_grafica, interval=30, blit=False, cache_frame_data=False)
     def enviar_parametros(self):
         try:
-            # Leer los valores de los Entry
             dist = float(self.entradas["Distancia (Setpoint)"].get())
             kp = float(self.entradas["Kp"].get())
             ki = float(self.entradas["Ki"].get())
             kd = float(self.entradas["Kd"].get())
 
-            # Formato a enviar: D:valor,P:valor,I:valor,D:valor\n
             comando = f"P:{dist},{kp},{ki},{kd}\n"
             
             if self.arduino and self.arduino.is_open:
                 self.arduino.write(comando.encode('utf-8'))
                 print(f"Enviado: {comando.strip()}")
-            else:
-                print(f"[Simulación] Comando preparado: {comando.strip()}")
 
         except ValueError:
-            messagebox.showerror("Error", "Por favor, ingresa solo valores numéricos en los campos.")
+            messagebox.showerror("Error", "Ingresa solo valores numéricos.")
 
     def toggle_estado(self):
         self.sistema_encendido = not self.sistema_encendido
         
         if self.sistema_encendido:
-            self.btn_estado.config(text="APAGAR LEVITADOR", bg="#f44336") # Rojo
+            self.btn_estado.config(text="APAGAR LEVITADOR", bg="#f44336")
             comando = "ESTADO:1\n"
         else:
-            self.btn_estado.config(text="ENCENDER LEVITADOR", bg="#2196F3") # Azul
+            self.btn_estado.config(text="ENCENDER LEVITADOR", bg="#2196F3")
             comando = "ESTADO:0\n"
 
         if self.arduino and self.arduino.is_open:
             self.arduino.write(comando.encode('utf-8'))
-            print(f"Enviado: {comando.strip()}")
-        else:
-            print(f"[Simulación] Comando preparado: {comando.strip()}")
 
     def actualizar_grafica(self, frame):
-        # Leer datos de Arduino si está conectado
         if self.arduino and self.arduino.is_open:
             try:
-                if self.arduino.in_waiting > 0:
+                while self.arduino.in_waiting > 0:
                     linea_serial = self.arduino.readline().decode('utf-8').strip()
-                    # Se asume que el arduino envía solo el número de la distancia (ej. "25.4")
-                    distancia_actual = float(linea_serial)
-                    tiempo_actual = time.time() - self.inicio_tiempo
                     
-                    self.tiempos.append(tiempo_actual)
-                    self.distancias.append(distancia_actual)
-            except Exception as e:
-                pass # Ignorar errores de lectura o de conversión en tiempo real
+                    if linea_serial:
+                        # Separar los datos por la coma (Setpoint, Distancia)
+                        datos = linea_serial.split(',')
+                        
+                        if len(datos) == 2:
+                            sp_actual = float(datos[0])
+                            distancia_actual = float(datos[1])
+                            tiempo_actual = time.time() - self.inicio_tiempo
+                            
+                            self.tiempos.append(tiempo_actual)
+                            self.setpoints.append(sp_actual)
+                            self.distancias.append(distancia_actual)
+            except Exception:
+                pass 
 
-        # Actualizar los datos de la línea en la gráfica
         if self.tiempos and self.distancias:
+            self.linea_setpoint.set_data(self.tiempos, self.setpoints)
             self.linea.set_data(self.tiempos, self.distancias)
-            self.ax.set_xlim(max(0, self.tiempos[-1] - 10), self.tiempos[-1] + 1) # Mostrar los últimos 10 segundos
+            
+            tiempo_reciente = self.tiempos[-1]
+            self.ax.set_xlim(max(0, tiempo_reciente - 10), max(10, tiempo_reciente))
 
-        return self.linea,
+        return self.linea_setpoint, self.linea
 
 if __name__ == "__main__":
     root = tk.Tk()
