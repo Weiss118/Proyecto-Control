@@ -15,9 +15,9 @@ float setpointActual = 10.0;
 const float VELOCIDAD_RAMPA = 0.25; 
 
 // Variables PID (Modificables desde Python)
-float Kp = 5.5;      
-float Ki = 0.45;     
-float Kd = 2.2;      
+float Kp = 8;      
+float Ki = 0.6;     
+float Kd = 3.2;      
 const int PWM_BASE = 145; // Feedforward para contrarrestar la gravedad
 
 // Variables de estado y filtros
@@ -94,8 +94,8 @@ void loop() {
       rawDistance = 50.0; 
     }
     
-    // Ajuste de tu CERO FÍSICO: Restamos los 5 cm de la parte superior
-    rawDistance = rawDistance - 5.0;
+    // Ajuste de tu CERO FÍSICO: Restamos los 5.2 cm de la parte superior
+    rawDistance = rawDistance - 7;
     
     // Evitar que la distancia sea negativa si la pelota sube más allá de la marca 0
     if (rawDistance < 0.0) {
@@ -113,7 +113,7 @@ void loop() {
 
       // B. Rescate si la pelota está en el fondo (ajustado a la nueva escala relativa)
       // Si el máximo útil es 40, a partir de 42 consideramos que se cayó
-      if (input >= 42.0) {
+      if (input >= 50.0) {
         pwmCalculado = 235; 
         integralSum = 0.0; // Evita inestabilidad al subir
       } 
