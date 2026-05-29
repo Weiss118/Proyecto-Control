@@ -6,7 +6,7 @@ const int M1 = 4;  // Dirección Motor
 const int TRIG_PIN = 9;
 const int ECHO_PIN = 10;
 
-const int MAX_DISTANCE = 70; 
+const int MAX_DISTANCE = 80; 
 NewPing sonar(TRIG_PIN, ECHO_PIN, MAX_DISTANCE);
 
 // --- PARÁMETROS DEL SISTEMA DE CONTROL ---
@@ -16,7 +16,7 @@ const float VELOCIDAD_RAMPA = 0.25;
 
 // Variables PID (Modificables desde Python)
 float Kp = 8;      
-float Ki = 0.6;     
+float Ki = 0.75;     
 float Kd = 3.2;      
 const int PWM_BASE = 145; // Feedforward para contrarrestar la gravedad
 
@@ -29,7 +29,7 @@ int pwmCalculado = 0;
 
 // Control de tiempo para bucle no bloqueante
 unsigned long lastTime = 0;
-const int sampleTime = 20; // El PID se ejecuta cada 20 ms
+const int sampleTime = 15; // El PID se ejecuta cada 15 ms
 const float alpha = 0.4;   // Factor de filtro EMA (0.0 a 1.0)
 
 void setup() {
@@ -90,12 +90,12 @@ void loop() {
     float rawDistance = sonar.ping_cm();
     
     // Manejo de lectura nula o pelota fuera de rango físico máximo (50 cm absolutos)
-    if (rawDistance == 0 || rawDistance > 50.0) {
-      rawDistance = 50.0; 
+    if (rawDistance == 0 || rawDistance > 70.0) {
+      rawDistance = 70.0; 
     }
     
-    // Ajuste de tu CERO FÍSICO: Restamos los 5.2 cm de la parte superior
-    rawDistance = rawDistance - 7;
+    // Ajuste de tu CERO FÍSICO: Restamos los 7.5 cm de la parte superior
+    rawDistance = rawDistance - 7.5;
     
     // Evitar que la distancia sea negativa si la pelota sube más allá de la marca 0
     if (rawDistance < 0.0) {

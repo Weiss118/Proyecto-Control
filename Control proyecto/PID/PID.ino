@@ -121,7 +121,9 @@ void loop() {
       errorAcumulado = constrain(errorAcumulado, -150, 150); 
       
       float diferenciaError = error - ultimoError;
-      pwmCalculado = PWM_BASE + (error * Kp) + (errorAcumulado * Ki) + (diferenciaError * Kd);
+      float P = error * Kp;
+      float I = error 
+      pwmCalculado = PWM_BASE + P + I + D;
       ultimoError = error;
     }
 
