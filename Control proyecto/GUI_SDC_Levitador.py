@@ -8,7 +8,7 @@ from matplotlib.animation import FuncAnimation
 import collections
 
 # --- CONFIGURACIÓN SERIAL ---
-PUERTO_SERIAL = 'COM3' # <-- Cambia esto a tu puerto real
+PUERTO_SERIAL = 'COM0' # <-- Cambia esto a tu puerto real
 BAUD_RATE = 115200     # <-- Ajustado a tu nuevo código de Arduino
 
 class LevitadorGUI:
@@ -18,10 +18,11 @@ class LevitadorGUI:
         self.root.geometry("1050x650")
 
         self.sistema_encendido = False
-        datosGuardados = 200
+        datosGuardados = 600
+        # Datos para la gráfica (guarda los últimos 100 puntos)
         self.tiempos = collections.deque(maxlen=datosGuardados)
         self.distancias = collections.deque(maxlen=datosGuardados)
-        self.setpoints = collections.deque(maxlen=datosGuardados) 
+        self.setpoints = collections.deque(maxlen=datosGuardados) # Nueva lista para la rampa suave
         self.inicio_tiempo = time.time()
 
         # Conexión Serial
@@ -62,7 +63,7 @@ class LevitadorGUI:
 
         self.entradas = {}
         # Valores por defecto basados en tu código
-        campos = {"Distancia (Setpoint)": "15", "Kp": "5.5", "Ki": "0.45", "Kd": "2.2"}
+        campos = {"Distancia (Setpoint)": "15", "Kp": "8", "Ki": "0.75", "Kd": "3.2"}
         
         for campo, valor_defecto in campos.items():
             frame_campo = tk.Frame(frame_controles)
