@@ -1,142 +1,90 @@
 /*
-  Control PID con Setpoint Suave (Rampa de Transición)
-  Ajustado para Tubo Largo (Juego de 40cm) - ADAPTADO PARA PYTHON GUI
+  Control PID Simplificado - Levitador de Aire
+  Versión con ganancias suavizadas para escala cruda (microsegundos).
 */
 
 // Pines del Motor (Puente H)
-const int E1 = 5; 
-const int M1 = 4; 
+const int pinPWM = 5; 
+const int pinDireccion = 4; 
 
 // Pines del Sensor Ultrasónico
 const int trigPin = 9;
 const int echoPin = 10;
 
-// PARÁMETROS DEL SISTEMA DE CONTROL
-int SETPOINT_OBJETIVO = 10; 
-float setpointActual = 10.0;  
+// PARÁMETROS PID ADAPTADOS 
+float Kp = 0.25; 
+float Ki = 0.01;
+float Kd = 0.7;
 
-const float VELOCIDAD_RAMPA = 0.25; 
+// float Kp = 0.7;
+// float Ki = 0.9;
+// float Kd = 1.0;
 
-// Variables PID (Modificables desde Python)
-float Kp = 5.5;      
-float Ki = 0.45;     
-float Kd = 2.2;      
-const int PWM_BASE = 145; 
-
-// Variables de control
-long duracion;
-int distancia;
-int ultimoError = 0;
+// Variables de Control
+int setpoint = 2000;    
 float errorAcumulado = 0;
-int pwmCalculado;
+int ultimoError = 0;
 
-// Variable de estado (Encendido/Apagado desde GUI)
-bool sistemaEncendido = false;
+/* 
+  NOTA SOBRE PWM_BASE: Ajusta este valor al número exacto de PWM donde 
+  el motor empieza a levantar la pelota. Si 145 es mucho, bájalo a 110-120.
+*/
+const int PWM_BASE = 140; 
+
+// Límites Anti-Windup (Ajustado a la nueva escala de Ki)
+const float limiteIntegral = 300.0; 
 
 void setup() {
   Serial.begin(9600);
-  pinMode(E1, OUTPUT);
-  pinMode(M1, OUTPUT);
+  pinMode(pinPWM, OUTPUT);
+  pinMode(pinDireccion, OUTPUT);
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
   
-  digitalWrite(M1, LOW); 
+  digitalWrite(pinDireccion, LOW); 
 }
 
 void loop() {
-  // 1. LEER EL PUERTO SERIAL (Escuchando a Python)
-  if (Serial.available() > 0) {
-    String entrada = Serial.readStringUntil('\n');
-    
-    // Si Python manda orden de Encender/Apagar (ESTADO:1 o ESTADO:0)
-    if (entrada.startsWith("ESTADO:")) {
-      int estado = entrada.substring(7).toInt();
-      sistemaEncendido = (estado == 1);
-      
-      // ACCIÓN INMEDIATA AL APAGAR: 
-      // Limpiamos la memoria del PID y apagamos el motor de golpe
-      if (!sistemaEncendido) {
-        analogWrite(E1, 0);
-        errorAcumulado = 0; 
-        ultimoError = 0;
-        setpointActual = SETPOINT_OBJETIVO; // Reiniciar la rampa
-      }
-    } 
-    // Si Python manda parámetros (Formato -> P:distancia,Kp,Ki,Kd)
-    else if (entrada.startsWith("P:")) {
-      entrada.remove(0, 2); // Quitar el "P:" inicial
-      
-      int coma1 = entrada.indexOf(',');
-      int coma2 = entrada.indexOf(',', coma1 + 1);
-      int coma3 = entrada.indexOf(',', coma2 + 1);
-      
-      if (coma1 > 0 && coma2 > 0 && coma3 > 0) {
-        int nuevoSetpoint = entrada.substring(0, coma1).toInt();
-        if (nuevoSetpoint >= 1 && nuevoSetpoint <= 45) {
-            SETPOINT_OBJETIVO = nuevoSetpoint;
-        }
-        Kp = entrada.substring(coma1 + 1, coma2).toFloat();
-        Ki = entrada.substring(coma2 + 1, coma3).toFloat();
-        Kd = entrada.substring(coma3 + 1).toFloat();
-      }
-    }
-  }
-
-  // 2. LEER LA DISTANCIA ACTUAL (Siempre se lee para que la gráfica en Python no se detenga)
+  // 1. LECTURA DEL SENSOR
   digitalWrite(trigPin, LOW);
   delayMicroseconds(2);
   digitalWrite(trigPin, HIGH);
   delayMicroseconds(10);
   digitalWrite(trigPin, LOW);
   
-  duracion = pulseIn(echoPin, HIGH);
-  distancia = (duracion * 0.0177) - 0.70;
-  
-  if (distancia > 60 || distancia <= 0) {
-    distancia = 52; 
+  long valorReal = pulseIn(echoPin, HIGH);
+
+  // Filtro rápido por si el sensor lee un cero o un ruido absurdo
+  if (valorReal == 0 || valorReal > 3000) {
+    valorReal = setpoint; // Ignora la lectura errónea para no alterar el PID
   }
 
-  // 3. LÓGICA DE CONTROL (Solo se ejecuta si está encendido)
-  if (sistemaEncendido) {
-    
-    // Generar la rampa suave para el setpoint
-    if (setpointActual < SETPOINT_OBJETIVO) {
-      setpointActual += VELOCIDAD_RAMPA; 
-      if (setpointActual > SETPOINT_OBJETIVO) setpointActual = SETPOINT_OBJETIVO;
-    } 
-    else if (setpointActual > SETPOINT_OBJETIVO) {
-      setpointActual -= VELOCIDAD_RAMPA; 
-      if (setpointActual < SETPOINT_OBJETIVO) setpointActual = SETPOINT_OBJETIVO;
-    }
+  // 2. CÁLCULO DEL ERROR
+  int error = valorReal - setpoint;
 
-    // Algoritmo PID
-    if (distancia >= 47) {
-      pwmCalculado = 235; 
-      errorAcumulado = 0; 
-      ultimoError = 0;
-    } 
-    else {
-      float error = distancia - setpointActual;
-      errorAcumulado += error;
-      errorAcumulado = constrain(errorAcumulado, -150, 150); 
-      
-      float diferenciaError = error - ultimoError;
-      pwmCalculado = PWM_BASE + (error * Kp) + (errorAcumulado * Ki) + (diferenciaError * Kd);
-      ultimoError = error;
-    }
+  // 3. TÉRMINO INTEGRAL CON ANTI-WINDUP
+  errorAcumulado += error;
+  errorAcumulado = constrain(errorAcumulado, -limiteIntegral, limiteIntegral);
 
-    if (distancia < 47) {
-      pwmCalculado = constrain(pwmCalculado, 110, 255); 
-    } else {
-      pwmCalculado = constrain(pwmCalculado, 0, 255);
-    }
+  // 4. TÉRMINO DERIVATIVO
+  int diferenciaError = error - ultimoError;
+  ultimoError = error;
 
-    // Aplicar potencia al motor
-    analogWrite(E1, pwmCalculado);
-  }
+  // 5. CÁLCULO DE SALIDA PID
+  int ajuste = (error * Kp) + (errorAcumulado * Ki) + (diferenciaError * Kd);
+  int pwmFinal = PWM_BASE + ajuste;
 
-  // 4. MONITOREO SERIAL (Exclusivo para la gráfica de Python)
-  Serial.println(distancia);
+  // 6. LIMITACIÓN DE SALIDA (Saturación de hardware)
+  pwmFinal = constrain(pwmFinal, 0, 255);
 
-  delay(60); 
+  // 7. EJECUCIÓN
+  analogWrite(pinPWM, pwmFinal);
+
+  // 8. MONITOREO
+  Serial.print("SP:"); Serial.print(setpoint);
+  Serial.print(" | Real:"); Serial.print(valorReal);
+  Serial.print(" | PWM:"); Serial.println(pwmFinal);
+
+  // Reducido a 35ms para reaccionar más rápido antes de que la pelota gane inercia
+  delay(15); 
 }

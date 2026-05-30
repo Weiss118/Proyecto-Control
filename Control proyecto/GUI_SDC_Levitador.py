@@ -19,10 +19,9 @@ class LevitadorGUI:
 
         self.sistema_encendido = False
         datosGuardados = 200
-        # Datos para la gráfica (guarda los últimos 100 puntos)
         self.tiempos = collections.deque(maxlen=datosGuardados)
         self.distancias = collections.deque(maxlen=datosGuardados)
-        self.setpoints = collections.deque(maxlen=datosGuardados) # Nueva lista para la rampa suave
+        self.setpoints = collections.deque(maxlen=datosGuardados) 
         self.inicio_tiempo = time.time()
 
         # Conexión Serial
