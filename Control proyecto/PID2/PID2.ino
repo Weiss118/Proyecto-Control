@@ -29,7 +29,11 @@ int pwmCalculado = 0;
 
 // Control de tiempo para bucle no bloqueante
 unsigned long lastTime = 0;
+<<<<<<< HEAD
 const int sampleTime = 20; // El PID se ejecuta cada 15 ms
+=======
+const int sampleTime = 15; // El PID se ejecuta cada 15 ms
+>>>>>>> 49732b51888e5a1ea9e83bcf875f56f0f3c29069
 const float alpha = 0.4;   // Factor de filtro EMA (0.0 a 1.0)
 
 void setup() {

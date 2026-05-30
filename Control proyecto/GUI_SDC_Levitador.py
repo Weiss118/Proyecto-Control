@@ -8,7 +8,7 @@ from matplotlib.animation import FuncAnimation
 import collections
 
 # --- CONFIGURACIÓN SERIAL ---
-PUERTO_SERIAL = 'COM0' # <-- Cambia esto a tu puerto real
+PUERTO_SERIAL = 'COM3' # <-- Cambia esto a tu puerto real
 BAUD_RATE = 115200     # <-- Ajustado a tu nuevo código de Arduino
 
 class LevitadorGUI:

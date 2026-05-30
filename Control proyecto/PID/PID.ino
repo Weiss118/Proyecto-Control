@@ -62,9 +62,29 @@ void loop() {
   // 2. CÁLCULO DEL ERROR
   int error = valorReal - setpoint;
 
+<<<<<<< HEAD
   // 3. TÉRMINO INTEGRAL CON ANTI-WINDUP
   errorAcumulado += error;
   errorAcumulado = constrain(errorAcumulado, -limiteIntegral, limiteIntegral);
+=======
+    // Algoritmo PID
+    if (distancia >= 47) {
+      pwmCalculado = 235; 
+      errorAcumulado = 0; 
+      ultimoError = 0;
+    } 
+    else {
+      float error = distancia - setpointActual;
+      errorAcumulado += error;
+      errorAcumulado = constrain(errorAcumulado, -150, 150); 
+      
+      float diferenciaError = error - ultimoError;
+      float P = error * Kp;
+      float I = error 
+      pwmCalculado = PWM_BASE + P + I + D;
+      ultimoError = error;
+    }
+>>>>>>> 49732b51888e5a1ea9e83bcf875f56f0f3c29069
 
   // 4. TÉRMINO DERIVATIVO
   int diferenciaError = error - ultimoError;
